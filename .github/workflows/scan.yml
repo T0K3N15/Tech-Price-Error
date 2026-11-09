@@ -1,0 +1,42 @@
+name: Tech Price Error Scanner
+
+on:
+  schedule:
+    # 8 AM, 1 PM, 6 PM and 10 PM Central Standard Time (UTC-6).
+    # During daylight time (CDT), these will run one hour later locally.
+    - cron: "0 0,4,14,19 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tech-price-error-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Run scanner
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: python scanner.py
+
+      - name: Save duplicate-detection state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/seen.json
+          if ! git diff --cached --quiet; then
+            git commit -m "Update scanner state [skip ci]"
+            git push
+          fi
